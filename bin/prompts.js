@@ -26,3 +26,13 @@ export const prompts = [
     choices: ["React", "Vue"],
   },
 ];
+
+export const mapLanguage = {
+  React: [
+    'react',
+    'react-dom'
+  ],
+  Vue: [
+    'vue'
+  ]
+}

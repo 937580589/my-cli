@@ -3,10 +3,11 @@ import axios from "axios";
 import ora from 'ora';
 import process from 'process';
 import { promisify } from 'util'
-import { exec } from 'child_process'
+import { exec, spawnSync } from 'child_process'
 import path from 'path';
 import chalk from 'chalk';
-import { clearDir, errorMessage,readJsonFileSync } from './common.js'
+import { clearDir, errorMessage,installDep,readJsonFileSync,writeFileSync } from './common.js';
+import { mapLanguage } from './prompts.js'
 
 const getTemplateList = async () => {
     const spinner = ora('读取模版中...').start();
@@ -33,9 +34,9 @@ export const overWriteInquirer = (targetPath) => {
             name: 'overWrite',
             message: '是否覆盖文件夹的内容'
         }
-    ]).then(({overWrite}) => {
+    ]).then( async ({overWrite}) => {
         if(overWrite){
-            clearDir(targetPath)
+            await clearDir(targetPath)
             selectTemplateInquirer(dirName)
             return;
         } else {
@@ -52,8 +53,8 @@ export const selectTemplateInquirer = (name) => {
             name: "isTemplate",
             message: "是否使用现有模版",
         },
-    ]).then(answers=> {
-            inquirerList(answers,name)
+    ]).then(answers => {
+        inquirerList(answers,name)
     })
 }
 
@@ -65,20 +66,20 @@ export const selectTemplateInquirer = (name) => {
  * @param {string} url 
  * @param {string} targetPath 
  */
-const cloneTemplate = (url, targetPath) => {
+const cloneTemplate = async (url, targetPath) => {
     const spinner = ora('正在下载模版中...').start();
 
     async function downloadTemplate() {
         try {
             await exec(`git clone ${url} ${targetPath}`);
-            spinner.stopAndPersist({
-                symbol: '✅',
-                text: '模版下载完成'
-            });
+            // spinner.stopAndPersist({
+            //     symbol: '✅',
+            //     text: '模版下载完成'
+            // });
+            spinner.succeed('模版下载完成...');
             return true;
         } catch (err) {
             spinner.fail('模版下载失败...');
-            console.error(err);
             return false;
         }
     }
@@ -106,22 +107,37 @@ const inquirerList = async (prop,name) => {
                 message: "请选择模版",
                 choices: nameList,
             }
-        ]).then(({ template })=>{
+        ])
+        .then(({ template })=>{
             const storeInfo = list.find(d=> d.name===template)
             let templatePath = path.resolve(process.cwd(), name);
             cloneTemplate(storeInfo.clone_url, templatePath)
-        }).then(()=>{
+            const dirPath = path.resolve(process.cwd(), name)
+            setTimeout(async ()=>{
+                console.log('准备安装依赖...')
+                installDep(void 0, dirPath)
+            },2000)
         })
+        // .then(()=>{
+        //     const dirPath = path.resolve(process.cwd(), name)
+        //     readJsonFileSync(dirPath,'package.json')
+        //     installDep(void 0, dirPath)
+        // })
     }else{
         inquirer.prompt([
             {
                 // when: (answers) => !answers.isTemplate,
                 type: "list",
                 name: "language",
-                message: "请选择新建项目的语言",
+                message: "请选择新建工程的语言",
                 choices: ["React", "Vue"],
             },
         ]).then((answers)=>{
+            const dirPath = path.resolve(process.cwd(), name);
+            const depList = mapLanguage[answers.language]
+            if(depList){
+                installDep(depList, dirPath)
+            }
         })
     }
 }
